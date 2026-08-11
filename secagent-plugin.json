@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "id": "markdown-handdrawn",
+  "name": "Markdown 手写 SVG",
+  "version": "1.0.1",
+  "main": "main.mjs",
+  "description": "将 Markdown、GFM 表格、数学公式和 Mermaid 图表渲染为手写风格 SVG，并可选择预览或直接插入 ICC-CE。",
+  "author": "SECTL",
+  "permissions": ["agent.tools", "agent.skills", "agent.preview", "network.http"]
+}

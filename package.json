@@ -1,0 +1,22 @@
+{
+  "name": "secagent-markdown-handdrawn-plugin",
+  "private": true,
+  "version": "1.0.1",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "npm run build && node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "katex": "^0.16.22",
+    "linkedom": "^0.18.13",
+    "marked": "^16.1.2",
+    "mermaid": "^11.16.1",
+    "opentype.js": "^1.3.4",
+    "roughjs": "^4.6.6"
+  },
+  "devDependencies": {
+    "adm-zip": "^0.5.16",
+    "esbuild": "^0.25.12"
+  }
+}
