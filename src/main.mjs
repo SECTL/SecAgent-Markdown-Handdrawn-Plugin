@@ -40,6 +40,24 @@ function normalizeColor(value, fallback) {
   return fallback;
 }
 
+function normalizeBoolean(value, fallback, name) {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+  }
+  throw new Error(`${name} 必须是布尔值 true 或 false`);
+}
+
+function normalizeOptionalNumber(value, name) {
+  if (value === undefined || value === null || value === "") return undefined;
+  const number = typeof value === "number" ? value : Number(String(value).trim());
+  if (!Number.isFinite(number)) throw new Error(`${name} 必须是数字`);
+  return number;
+}
+
 function hashSeed(value) {
   let hash = 2166136261;
   for (const character of value) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619);
@@ -774,12 +792,13 @@ function sceneMetadata(scene) {
 
 async function renderSvg(markdown, options = {}) {
   if (Buffer.byteLength(markdown, "utf8") > MAX_MARKDOWN_BYTES) throw new Error("Markdown 内容不能超过 2 MiB");
-  const width = Math.max(640, Math.min(2400, Number.isFinite(options.width) ? Math.round(options.width) : DEFAULT_WIDTH));
+  const requestedWidth = normalizeOptionalNumber(options.width, "width");
+  const width = Math.max(640, Math.min(2400, Number.isFinite(requestedWidth) ? Math.round(requestedWidth) : DEFAULT_WIDTH));
   const title = typeof options.title === "string" && options.title.trim() ? options.title.trim().slice(0, 120) : "Markdown 手写预览";
   const seed = hashSeed(markdown);
-  const transparent = options.transparent === true;
-  const showFrame = options.frame !== false;
-  const tableBorders = options.tableBorders !== false;
+  const transparent = normalizeBoolean(options.transparent, false, "transparent");
+  const showFrame = normalizeBoolean(options.frame, true, "frame");
+  const tableBorders = normalizeBoolean(options.tableBorders, true, "tableBorders");
   const renderedMarkdown = await renderMarkdownHtml(markdown, seed);
   const html = decorateHtml(toXmlCompatibleXhtml(renderedMarkdown.html), seed, tableBorders);
   const estimatedHeight = estimateHeight(markdown, html);
@@ -852,15 +871,24 @@ export async function activate(api) {
     }
   }, async (args) => {
     if (typeof args.markdown !== "string") throw new Error("markdown 必须是字符串");
-    const svg = await renderSvg(args.markdown, args);
-    const result = await api.openSvgPreview({ svg, title: args.title, fileName: args.fileName, openPreview: args.preview !== false });
+    const normalizedArgs = {
+      ...args,
+      width: normalizeOptionalNumber(args.width, "width"),
+      transparent: normalizeBoolean(args.transparent, false, "transparent"),
+      frame: normalizeBoolean(args.frame, true, "frame"),
+      tableBorders: normalizeBoolean(args.tableBorders, true, "tableBorders"),
+      preview: normalizeBoolean(args.preview, true, "preview"),
+      insertToIccce: normalizeBoolean(args.insertToIccce, false, "insertToIccce")
+    };
+    const svg = await renderSvg(normalizedArgs.markdown, normalizedArgs);
+    const result = await api.openSvgPreview({ svg, title: normalizedArgs.title, fileName: normalizedArgs.fileName, openPreview: normalizedArgs.preview });
     if (!result.previewOpened && result.previewError && !result.previewError.includes("没有 Electron")) throw new Error(`SVG 预览失败：${result.previewError}`);
     let iccce = null;
-    if (args.insertToIccce === true) {
+    if (normalizedArgs.insertToIccce) {
       const response = await api.fetch("http://127.0.0.1:18790/tools/insert_iccce_svg", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ svg, name: args.title || "Markdown 手写内容", width: args.width })
+        body: JSON.stringify({ svg, name: normalizedArgs.title || "Markdown 手写内容", width: normalizedArgs.width })
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || payload.ok === false) throw new Error(payload?.error?.message || `ICC-CE 插入失败（HTTP ${response.status}）`);

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { renderSvg } from "../dist/main.mjs";
+import { activate, renderSvg } from "../dist/main.mjs";
 
 test("renders hand-drawn SVG with Markdown, table and math", async () => {
   const svg = await renderSvg("# 标题\n\n| 名称 | 值 |\n| --- | --- |\n| x | $x^2$ |\n\n$$\\int_0^1 x dx$$", { width: 900 });
@@ -66,4 +66,39 @@ test("renders Mermaid fences as hand-drawn diagram SVG and editable scene items"
   const sceneBase64 = svg.match(/<metadata id="secagent-editable-scene" data-encoding="base64">([^<]+)<\/metadata>/)?.[1];
   const scene = JSON.parse(Buffer.from(sceneBase64, "base64").toString("utf8"));
   assert.ok(scene.elements.some((element) => element.kind === "svg" && element.role === "mermaid"));
+});
+
+test("normalizes string tool flags and inserts without opening preview", async () => {
+  let toolHandler;
+  let previewRequest;
+  let insertRequest;
+  const api = {
+    registerSkill() {},
+    unregisterSkill() {},
+    registerTool(_definition, handler) { toolHandler = handler; },
+    unregisterTool() {},
+    setStatus() {},
+    async openSvgPreview(input) {
+      previewRequest = input;
+      return { path: "test.svg", relativePath: "test.svg", bytes: input.svg.length, previewOpened: false };
+    },
+    async fetch(_url, input) {
+      insertRequest = input;
+      return { ok: true, status: 200, async json() { return { ok: true, result: { inserted: true } }; } };
+    }
+  };
+  await activate(api);
+  const result = await toolHandler({
+    markdown: "# title",
+    width: "1000",
+    transparent: "true",
+    frame: "false",
+    tableBorders: "false",
+    preview: "false",
+    insertToIccce: "true"
+  });
+  assert.equal(previewRequest.openPreview, false);
+  assert.equal(insertRequest !== undefined, true);
+  assert.equal(JSON.parse(insertRequest.body).width, 1000);
+  assert.equal(result.iccce.inserted, true);
 });
